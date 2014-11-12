@@ -11,41 +11,58 @@ from selenium.webdriver.common.action_chains import ActionChains
 import zipfile
 import requests
 import cookielib, urllib
+from distutils import spawn
+from selenium.webdriver.common.by import By 
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as ec
+import code
+import readline
+import rlcompleter
 
 # Important variables; set create_new_graph to 0 to not upload to plotly
 create_new_graph = 1
-uinet_userid = 'gabeandlindsay'
-uinet_password = 'wedding032313'
+ui_userid = 'gabeandlindsay'
+ui_password = 'wedding032313'
 plotly_userid = 'langelgjm'
 plotly_password = '9jg4ctwmge'
 download_dir = os.getcwd()
+ui_url = 'https://www.uinet.com'
+ui_myacct_url = 'https://www.uinet.com/wps/myportal/uinet/myaccount/accounthome/dashboard'
+phantom_js = '/usr/bin/phantomjs'
 
 # Create browser instance and login
-url = 'https://www.uinet.com'
-print 'Logging into ' + url + '...'
-browser = webdriver.PhantomJS('/usr/bin/phantomjs')
-browser.get(url)
+print 'Logging into ' + ui_url + '...'
+browser = webdriver.PhantomJS(phantom_js)
+browser.implicitly_wait(10)
+browser.get(ui_url)
 username = browser.find_element_by_name('userid')
 password = browser.find_element_by_name('password')
-username.send_keys(uinet_userid)
-password.send_keys(uinet_password)
+username.send_keys(ui_userid)
+password.send_keys(ui_password)
 password.submit()
 
 print 'Traversing website...'
 # Traverse pages and elements to obtain Green Button zip file
 # This section is likely to break with page design changes
-browser.get('https://www.uinet.com/wps/myportal/uinet/myaccount/accounthome/dashboard')
-# Not sure how long this URL will be valid or if there is a way to programatically obtain it
-# The page includes an ?date variable in the URL that is not necessary, so I removed it
-# Note this URL has private information - the encoded user ID and meter ID, so it would be better to find it some other way
-# Alternatively could specify those variables as private information and build the URL
-browser.get('https://www.energyguide.com/LoadAnalysis/LoadAnalysis.aspx?referrerid=224&enccuid=yX9zSdfU8MSYE96LwfPDvw==&meterid=011136627&mdd=3&p=1&c=2')
+browser.get(ui_myacct_url)
+element = browser.find_element_by_xpath("//iframe[contains(@src,'energyguide.com')]")
+browser.switch_to_frame(element)
+element = browser.find_element_by_xpath("//a[contains(@href,'LoadAnalysis')]")
+element.click()
+
+# For testing only
+vars = globals()
+vars.update(locals())
+shell = code.InteractiveConsole(vars)
+shell.interact()
+
 element = browser.find_element_by_xpath("//img[contains(@src,'images/GreenButton.jpg')]")
 element.click()
 handles = browser.window_handles
 # Not sure why but when I removed this loop I could not successfully switch to the other window
 for handle in handles:
     print handle
+
 # Since clicking the Green Button opens a second window, switch to the second window
 browser.switch_to_window(handles[1])
 element = browser.find_element_by_id('btnDownloadUsage')
@@ -56,7 +73,8 @@ ActionChains(browser).move_to_element(element).perform()
 #time.sleep(0.25)
 #hov.perform()
 # Have to wait a bit after moving to the element for it to become visible before clicking it
-time.sleep(10)
+#print "Explicitly sleeping 10 seconds")
+#time.sleep(10)
 element.click()
 # PhantomJS can't download files. But clicking the element executes some javascript that changes the href attribute of the lnkDownload
 # So here I get that attribute and download the file using another tool
