@@ -20,7 +20,7 @@ import readline
 import rlcompleter
 
 # Important variables; set create_new_graph to 0 to not upload to plotly
-create_new_graph = 1
+create_new_graph = 0
 ui_userid = 'gabeandlindsay'
 ui_password = 'wedding032313'
 plotly_userid = 'langelgjm'
@@ -28,7 +28,8 @@ plotly_password = '9jg4ctwmge'
 download_dir = os.getcwd()
 ui_url = 'https://www.uinet.com'
 ui_myacct_url = 'https://www.uinet.com/wps/myportal/uinet/myaccount/accounthome/dashboard'
-phantom_js = '/usr/bin/phantomjs'
+phantom_js = '/Users/gjm/phantomjs-1.9.8-macosx/bin/phantomjs'
+
 
 # Create browser instance and login
 print 'Logging into ' + ui_url + '...'
@@ -43,39 +44,38 @@ password.submit()
 
 print 'Traversing website...'
 # Traverse pages and elements to obtain Green Button zip file
-# This section is likely to break with page design changes
+# This section is likely to break when the page design or layout changes
 browser.get(ui_myacct_url)
+# Find the EnergyGuide frame and switch to it
 element = browser.find_element_by_xpath("//iframe[contains(@src,'energyguide.com')]")
 browser.switch_to_frame(element)
+# Find the "Energy Use Analysis" link, get its href attribute, and go there
 element = browser.find_element_by_xpath("//a[contains(@href,'LoadAnalysis')]")
-element.click()
+ui_analysis_url = element.get_attribute("href")
+browser.get(ui_analysis_url)
 
 # For testing only
-vars = globals()
-vars.update(locals())
-shell = code.InteractiveConsole(vars)
-shell.interact()
+#vars = globals()
+#vars.update(locals())
+#shell = code.InteractiveConsole(vars)
+#shell.interact()
 
 element = browser.find_element_by_xpath("//img[contains(@src,'images/GreenButton.jpg')]")
 element.click()
+print "clicked GreenButton"
 handles = browser.window_handles
-# Not sure why but when I removed this loop I could not successfully switch to the other window
-for handle in handles:
-    print handle
-
 # Since clicking the Green Button opens a second window, switch to the second window
 browser.switch_to_window(handles[1])
 element = browser.find_element_by_id('btnDownloadUsage')
 element.click()
+print "clicked btnDownloadUsage"
 element = browser.find_element_by_id('lnkDownload')
-#hov = ActionChains(browser).move_to_element(element)
 ActionChains(browser).move_to_element(element).perform()
-#time.sleep(0.25)
-#hov.perform()
-# Have to wait a bit after moving to the element for it to become visible before clicking it
-#print "Explicitly sleeping 10 seconds")
-#time.sleep(10)
+# We need to wait a while for the element to become visible
+# Recode this section to use a try with an expected condition?
+time.sleep(10)
 element.click()
+print "clicked lnkDownload"
 # PhantomJS can't download files. But clicking the element executes some javascript that changes the href attribute of the lnkDownload
 # So here I get that attribute and download the file using another tool
 element = browser.find_element_by_id('lnkDownload')
