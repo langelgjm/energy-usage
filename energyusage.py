@@ -28,6 +28,7 @@ download_dir = os.getcwd()
 ui_url = 'https://www.uinet.com'
 ui_myacct_url = 'https://www.uinet.com/wps/myportal/uinet/myaccount/accounthome/dashboard'
 phantom_js = '/Users/gjm/phantomjs-1.9.8-macosx/bin/phantomjs'
+greenbutton_file = 'greenbutton.zip'
 
 # Create browser instance and login
 logging.info('Logging into ' + ui_url + '...')
@@ -89,23 +90,33 @@ link = element.get_attribute('href')
 logging.info('File location is ' + link)
 
 # Save cookies for use by requests
+logging.debug('Saving cookies from webdriver...')
 cj = cookielib.CookieJar()
-logging.debug('Saving cookies...')
-for c in browser.get_cookies():
-#    print "%s -> %s" % (c['name'], c['value'])
-    ck = cookielib.Cookie(name=c['name'], value=urllib.unquote(c['value']), domain=c['domain'], \
-             path=c['path'], \
-             secure=c['secure'], rest={'HttpOnly': c['httponly']}, \
-             version =0,    port=None,port_specified=False, \
-             domain_specified=False,domain_initial_dot=False, \
-             path_specified=True,   expires=None,   discard=True, \
-             comment=None, comment_url=None, rfc2109=False)
-    logging.debug(ck)
-    cj.set_cookie(ck)
+for cookie in browser.get_cookies():
+#    logging.debug(cookie['name'], cookie['value'])
+    new_cookie = cookielib.Cookie(name=cookie['name'], 
+                          value=urllib.unquote(cookie['value']), 
+                          domain=cookie['domain'], 
+                          path=cookie['path'], 
+                          secure=cookie['secure'], 
+                          rest={'HttpOnly': cookie['httponly']}, 
+                          version=0, 
+                          port=None,
+                          port_specified=False, 
+                          domain_specified=False,
+                          domain_initial_dot=False,
+                          path_specified=True,
+                          expires=None,
+                          discard=True,
+                          comment=None,
+                          comment_url=None,
+                          rfc2109=False)
+    logging.debug(new_cookie)
+    cj.set_cookie(new_cookie)
 
 logging.debug('Downloading file...')
 r = requests.get(link, cookies=cj)
-f = open('ui.zip', 'wb')
+f = open(greenbutton_file, 'wb')
 f.write(r.content)
 f.close()
 
@@ -123,19 +134,28 @@ def get_recent_file_with_ext(ext, directory):
     files.sort(key=lambda x: os.path.getmtime(x))
     return files[-1]
 
-# Get most recent zip file in the cwd
-newest_file = get_recent_file_with_ext(".zip", download_dir)
-
-# Unzip the most recent zip file
 # This is not a safe way to do this - extractall does not prevent path traversal attacks
 def unzip(source_filename, dest_dir):
-    with zipfile.ZipFile(source_filename) as zf:
-        zf.extractall()
-logging.debug('Unzipping file...')
-unzip(newest_file, download_dir)
+    if zipfile.is_zipfile(source_filename) == True:        
+        with zipfile.ZipFile(source_filename) as zf:
+            try:
+                zf_info = zf.infolist()
+                zf.extractall()
+# Assuming it only contains one file
+                return zf_info[0].filename
+# Should probably check that this is an XML file
+            except zipfile.BadZipfile:
+                logging.error("Error extracting ZIP file.")
+                logging.error("Exiting.")
+                sys.exit()
+    else:
+        logging.error("Not a ZIP file.")
+        logging.error("Exiting.")
+        sys.exit()
 
-# Get most recent xml file
-newest_file = get_recent_file_with_ext(".xml", download_dir)
+logging.debug('Unzipping file...')
+greenbutton_xml = unzip(greenbutton_file, download_dir)
+logging.debug(greenbutton_xml)
 
 starts = []
 timestamps = []
@@ -143,32 +163,25 @@ values = []
 
 # Use the most recent xml file as our data source
 logging.debug('Parsing file...')
-f = open(newest_file, 'r')
+f = open(greenbutton_xml, 'r')
 xml = f.read()
+logging.debug(xml)
 soup = BeautifulStoneSoup(xml)
 entries = soup.findAll('entry')
 
 # Create lists based on data source
 for entry in entries:
-    if entry.title is not None:
-#        e = e + 1
-#        print 'Entry ' + str(e) + ': ' + entry.title.contents[0]
-# Exclude blocks like address info or summary usage
-        if entry.title.contents[0] == u'Energy Usage':
-            duration = entry.content.intervalblock.intervalreading.timeperiod.duration.contents[0]
-#            print 'Duration: ' + duration
-            start = entry.content.intervalblock.intervalreading.timeperiod.start.contents[0]
-#            print 'Start: ' + start
-            timestamp = datetime.fromtimestamp(int(start))
-#            print 'Timestamp: ' + str(datetime.fromtimestamp(timestamp))
-            value = int(entry.content.intervalblock.intervalreading.value.contents[0])
-#            print 'Value: ' + value
-            logging.debug(timestamp, value)
-            starts.append(int(start))
-            timestamps.append(timestamp)
-            values.append(value)
-    else:
-        pass
+    if entry.title is not None and entry.title.contents[0] == u'Energy Usage':
+        duration = entry.content.intervalblock.intervalreading.timeperiod.duration.contents[0]
+        start = entry.content.intervalblock.intervalreading.timeperiod.start.contents[0]
+        timestamp = datetime.fromtimestamp(int(start))
+        value = int(entry.content.intervalblock.intervalreading.value.contents[0])
+        logging.debug(timestamp, value)
+        starts.append(int(start))
+        timestamps.append(timestamp)
+        values.append(value)
+#    else:
+#        pass
 
 f.close()
 
