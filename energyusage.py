@@ -1,7 +1,6 @@
 from BeautifulSoup import BeautifulStoneSoup
 from datetime import datetime
 import time
-import numpy
 import plotly.plotly as py
 #from plotly.graph_objs import Bar, Scatter, Data, Layout, XAxis, YAxis, Figure, Marker
 from plotly.graph_objs import *
@@ -17,28 +16,43 @@ import sys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 from distutils import spawn
+import ConfigParser
 
-###############################################################################
-# Private information you should set according to your accounts
-ui_userid = 'gabeandlindsay'
-ui_password = 'wedding032313'
-plotly_userid = 'langelgjm'
-plotly_password = '9jg4ctwmge'
 ###############################################################################
 
 # Define the logging level
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
-# Important variables; set create_new_graph to 0 to not upload a new graph to Plotly
+# Set the working directory
 working_dir = os.getcwd()
-create_new_graph = 1
+
+# Create a ConfigParser and read the configuration file
+config_file = 'config.txt'
+config = ConfigParser.ConfigParser()
+config.read(config_file)    
+
+def config_dict(section):
+    dict1 = {}
+    options = config.options(section)
+    for option in options:
+        try:
+            dict1[option] = config.get(section, option)
+        except:
+            logging.debug("Configuration exception for option %s." % option)
+            dict1[option] = None
+    return dict1
+
+# Create two configuration dictionaries for our use
+config_secrets = config_dict('secrets')
+config_general = config_dict('general')
+
 ui_url = 'https://www.uinet.com'
 ui_myacct_url = 'https://www.uinet.com/wps/myportal/uinet/myaccount/accounthome/dashboard'
 # Used to save the downloaded ZIP file
 greenbutton_zipfile = 'greenbutton.zip'
 
-# You should define your PhantomJS executable location here
-phantom_js = '/Users/gjm/phantomjs-1.9.8-macosx/bin/phantomjs'
+# You should define your PhantomJS executable location in config.txt
+phantom_js = config_general['phantom_js']
 # But if you don't we'll try to find it
 if phantom_js == '':
     phantom_js = spawn.find_executable("phantom_js")
@@ -60,8 +74,8 @@ logging.info('Logging into ' + ui_url + '...')
 browser.get(ui_url)
 username = browser.find_element_by_name('userid')
 password = browser.find_element_by_name('password')
-username.send_keys(ui_userid)
-password.send_keys(ui_password)
+username.send_keys(config_secrets['ui_userid'])
+password.send_keys(config_secrets['ui_password'])
 password.submit()
 
 # Traverse pages and elements to obtain Green Button ZIP file
@@ -142,6 +156,10 @@ f = open(greenbutton_zipfile, 'wb')
 f.write(r.content)
 f.close()
 
+browser.quit()
+
+###############################################################################
+
 logging.debug('Unzipping file...')
 if zipfile.is_zipfile(greenbutton_zipfile) == True:        
     with zipfile.ZipFile(greenbutton_zipfile) as zf:
@@ -162,6 +180,8 @@ else:
     logging.error("Not a ZIP file.")
     sys.exit("Exiting.")
 
+###############################################################################
+
 logging.info('Parsing unzipped XML file...')
 f = open(greenbutton_xmlfile, 'r')
 xml = f.read()
@@ -177,64 +197,103 @@ if len(entries) == 0:
 # This is heavily dependent on the structure of this particular Green Button XML file
 # It will likely break if the structure of the XML file changes at all
 starts = []
-timestamps = []
-values = []
+energyusage = {}
+
 for entry in entries:
     if entry.title is not None and entry.title.contents[0] == u'Energy Usage':
         duration = entry.content.intervalblock.intervalreading.timeperiod.duration.contents[0]
         start = entry.content.intervalblock.intervalreading.timeperiod.start.contents[0]
         timestamp = datetime.fromtimestamp(int(start))
         value = int(entry.content.intervalblock.intervalreading.value.contents[0])
+        energyusage.update({timestamp:value})
         starts.append(int(start))
-        timestamps.append(timestamp)
-        values.append(value)
         
 f.close()
 
+###############################################################################
+
 # Convert to kWh
-values = numpy.array(values)
-values = values / 1000
-values_mean = average(values)
-logging.info('Average: ' +  str(values_mean))
-# Convert single mean to list for plotting purposes
-values_mean = [values_mean] * len(values)
+for k,v in energyusage.iteritems():
+    energyusage[k] = energyusage[k] / 1000
+
+# Generating mean lines for each month.
+# So we need to get the mean for each month
+# Create a dictionary whose keys are months and whose values are means for 
+# the entries for that month
+# Also create a dictionary whose keys are months and whose values are the 
+# number of entries for that month
+month_mean_dict = {}
+month_length_dict = {}
+for m in list(set([k.month for k in energyusage])):
+    l = []
+    month_average = 0
+    for i in energyusage:
+        if i.month == m:
+            l.append(i)
+    month_average = average([energyusage[n] for n in l])
+    month_mean_dict.update({m:month_average})
+    month_length_dict.update({m:len(l)})
+
+logging.info('Average monthly values: ' +  str(month_mean_dict))
+
+# Now that we have those, generate a dictionary whose keys are months 
+# and whose values are lists of the mean for that month, with list lengths 
+# equal to the number of entries for that month
+month_mean_lines_dict = {}
+for m in month_mean_dict:
+    l = [month_mean_dict[m]] * month_length_dict[m]
+    month_mean_lines_dict.update({m:l})
 
 # Make a fitted line
+# Complicated by the fact that python dictionaries aren't ordered
+# Get the x values (timestamps) in order
+timestamps = sorted([k for k in energyusage])
+# Get the y values in order (based on the ordered timestamps just created
+values = [energyusage[k] for k in timestamps]
+# convert the x values (timestamps) to UNIX time for polyfit
 timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
 m,b = polyfit(timestamps_ts, values, 1)
 values_fitted = [m*x + b for x in timestamps_ts]
 
-# Create a list of 12 colors, one for each month (Brewer colors)
-month_colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c',
-          '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', 
-          '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
-bar_colors = [month_colors[t.month - 1] for t in timestamps]
+# Three alternating colors to provide contrast month to month
+month_colors = ['#7fc97f','#beaed4','#fdc086']
+mean_colors = ['#4daf4a', '#984ea3', '#ff7f00']
+# Remember to use the sorted keys from before, otherwise colors will be out of order
+bar_colors = [month_colors[k.month % 3] for k in timestamps]
 
+###############################################################################
 
 # There's some weird indentation error going on here I can't figure out right now
-if create_new_graph == 1:
+# Only appears in interactive mode
+# Got rid of line breaks for now to fix it
+if config.getboolean('general', 'upload_graph') == True:
     logging.info('Uploading new graph to Plotly...')
-    py.sign_in(plotly_userid, plotly_password)
-    
-    bar1 = Bar(
-               x=timestamps,
-               y=values,
-               marker=Marker(color=bar_colors),
-               name='Daily')
-    line_mean = Scatter(
-                       x=timestamps,
-                       y=values_mean,
-                       mode='lines',
-                       name='Mean'
-                       )
-    line_fit = Scatter(
-                       x=timestamps,
+    py.sign_in(config_secrets['plotly_userid'], config_secrets['plotly_password'])
+
+    bar1 = Bar(x=timestamps,y=values,marker=Marker(color=bar_colors),name='Daily')
+
+    # Loop through the dictionary, creating a mean line for each month
+    mean_lines = []
+    for m in month_mean_lines_dict:
+        indexes = [i for i,x in enumerate(timestamps) if x.month==m]
+        mean_line = Scatter(
+                            x = [timestamps[i] for i in indexes],
+                            y = month_mean_lines_dict[m],
+                            mode='lines',
+                            # Get the friendly month name
+                            name=datetime(1900,m,1,1,1,1).strftime("%B") + ' Average',
+                            # Make sure it's the same color as the month
+                            marker=Marker(color=mean_colors[m % 3])
+                            )
+        mean_lines.append(mean_line)
+
+    line_fit = Scatter(x=timestamps,
                        y=values_fitted,
                        mode='lines',
                        name='Trend'
                        )
 
-    data = Data([bar1, line_mean, line_fit])
+    data = Data([bar1, line_fit] + mean_lines)
 
     layout = Layout(
                     title='Energy Usage',
@@ -247,5 +306,7 @@ if create_new_graph == 1:
     logging.debug('Done uploading.')
 else:
     logging.info('Not uploading a new graph.')
+
+###############################################################################
 
 logging.info('Done.')
