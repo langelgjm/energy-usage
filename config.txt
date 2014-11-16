@@ -1,0 +1,14 @@
+[secrets]
+# Your United Illuminating login credentials 
+ui_userid = 
+ui_password = 
+# Your Plotly login credentials
+plotly_userid = 
+plotly_password = 
+
+[general]
+# true to upload your graphs to Plotly, otherwise false
+upload_graph = true
+# Location of your PhantomJS binary; if you don't know, the script will try to 
+# guess it
+phantom_js = 
