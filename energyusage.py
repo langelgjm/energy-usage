@@ -21,7 +21,7 @@ import ConfigParser
 ###############################################################################
 
 # Define the logging level; choose DEBUG or INFO for more detailed output
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
 
 # Change to the working directory, which is the directory of the script
 pathname = os.path.dirname(sys.argv[0])
@@ -175,7 +175,7 @@ logging.info('Unzipping file...')
 if zipfile.is_zipfile(greenbutton_zipfile):        
     with zipfile.ZipFile(greenbutton_zipfile) as zf:
         try:
-            zf_info = zf.debuglist()
+            zf_info = zf.infolist()
             if len(zf_info) == 1:
                 greenbutton_xmlfile = zf_info[0].filename
                 logging.info("Found one file inside the ZIP file, named " + greenbutton_xmlfile)
