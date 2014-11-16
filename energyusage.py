@@ -2,8 +2,8 @@ from BeautifulSoup import BeautifulStoneSoup
 from datetime import datetime
 import time
 import plotly.plotly as py
-#from plotly.graph_objs import Bar, Scatter, Data, Layout, XAxis, YAxis, Figure, Marker
-from plotly.graph_objs import *
+from plotly.graph_objs import Bar, Scatter, Data, Layout, XAxis, YAxis, Figure, Marker
+#from plotly.graph_objs import *
 from numpy import average, polyfit
 import os
 from selenium import webdriver
@@ -20,16 +20,27 @@ import ConfigParser
 
 ###############################################################################
 
-# Define the logging level
+# Define the logging level; choose DEBUG or INFO for more detailed output
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
-# Set the working directory
-working_dir = os.getcwd()
+# Change to the working directory, which is the directory of the script
+pathname = os.path.dirname(sys.argv[0])
+working_dir = os.path.abspath(pathname)
+try:
+    os.chdir(working_dir)
+except:
+    logging.error("Couldn't change to script directory.")
+    sys.exit("Exiting.")
 
 # Create a ConfigParser and read the configuration file
 config_file = 'config.txt'
 config = ConfigParser.ConfigParser()
-config.read(config_file)    
+try:
+    with open(config_file) as f:
+        config.readfp(f)
+except IOError:
+    logging.error("Couldn't open configuration file.")
+    sys.exit("Exiting.")
 
 def config_dict(section):
     dict1 = {}
@@ -38,7 +49,7 @@ def config_dict(section):
         try:
             dict1[option] = config.get(section, option)
         except:
-            logging.debug("Configuration exception for option %s." % option)
+            logging.info("Configuration exception for option %s." % option)
             dict1[option] = None
     return dict1
 
@@ -60,7 +71,7 @@ if phantom_js == '':
         logging.error("No PhantomJS path set, and none found automatically.")
         #sys.exit("Exiting.")
     else:
-        logging.debug("No PhantomJS path set, but found at " + phantom_js)
+        logging.info("No PhantomJS path set, but found at " + phantom_js)
 
 ###############################################################################
 
@@ -70,7 +81,7 @@ browser.implicitly_wait(10)
 wait = WebDriverWait(browser, 10)
 
 # Sign in to UI site
-logging.info('Logging into ' + ui_url + '...')
+print('Logging into ' + ui_url + '...')
 browser.get(ui_url)
 username = browser.find_element_by_name('userid')
 password = browser.find_element_by_name('password')
@@ -80,7 +91,7 @@ password.submit()
 
 # Traverse pages and elements to obtain Green Button ZIP file
 # This section is likely to break when the page design or layout changes
-logging.info('Getting My Account page...')
+print('Getting My Account page...')
 browser.get(ui_myacct_url)
 # Find the EnergyGuide frame and switch to it
 element = browser.find_element_by_xpath("//iframe[contains(@src,'energyguide.com')]")
@@ -88,30 +99,30 @@ browser.switch_to_frame(element)
 # Find the "Energy Use Analysis" link, get its href attribute, and go there
 element = browser.find_element_by_xpath("//a[contains(@href,'LoadAnalysis')]")
 ui_analysis_url = element.get_attribute("href")
-logging.info('Getting Energy Use Analysis page...')
+print('Getting Energy Use Analysis page...')
 browser.get(ui_analysis_url)
 
 # Find the Green Button image and click it
 element = browser.find_element_by_xpath("//img[contains(@src,'images/GreenButton.jpg')]")
-logging.debug('Clicking GreenButton...')
+logging.info('Clicking GreenButton...')
 element.click()
 handles = browser.window_handles
 # Since clicking the Green Button opens a second window, switch to the second window
-logging.debug('Switching to new window...')
+logging.info('Switching to new window...')
 browser.switch_to_window(handles[1])
 element = browser.find_element_by_id('btnDownloadUsage')
-logging.debug('Clicking btnDowloadUsage...')
+logging.info('Clicking btnDowloadUsage...')
 element.click()
 element = browser.find_element_by_id('lnkDownload')
-logging.debug('Moving to lnkDownload...')
+logging.info('Moving to lnkDownload...')
 # We need to move to the element to make it visible
 ActionChains(browser).move_to_element(element).perform()
 # Having moved, we need to wait for the element to become visible before clicking it
 try:
-    logging.debug('Waiting for lnkDownload to become visible...')
+    logging.info('Waiting for lnkDownload to become visible...')
     wait.until(expected_conditions.visibility_of(element))
     element.click()
-    logging.debug("Successfully clicked lnkDownload.")
+    logging.info("Successfully clicked lnkDownload.")
 except:
     logging.error("Probable timeout waiting for lnkDownload to become visible.")
     browser.quit()
@@ -123,10 +134,10 @@ except:
 # So here we get that attribute and download the file using requests.
 element = browser.find_element_by_id('lnkDownload')
 link = element.get_attribute('href')
-logging.info('File location is ' + link)
+print('File location is ' + link)
 
 # Save cookies for use by requests
-logging.debug('Saving cookies from webdriver...')
+logging.info('Saving cookies from webdriver...')
 cj = cookielib.CookieJar()
 for cookie in browser.get_cookies():
     new_cookie = cookielib.Cookie(name=cookie['name'], 
@@ -146,11 +157,11 @@ for cookie in browser.get_cookies():
                           comment=None,
                           comment_url=None,
                           rfc2109=False)
-    logging.debug(new_cookie)
+    logging.info(new_cookie)
     cj.set_cookie(new_cookie)
 
 # Download the file using requests and our saved cookies
-logging.debug('Downloading file...')
+logging.info('Downloading file...')
 r = requests.get(link, cookies=cj)
 f = open(greenbutton_zipfile, 'wb')
 f.write(r.content)
@@ -160,14 +171,14 @@ browser.quit()
 
 ###############################################################################
 
-logging.debug('Unzipping file...')
-if zipfile.is_zipfile(greenbutton_zipfile) == True:        
+logging.info('Unzipping file...')
+if zipfile.is_zipfile(greenbutton_zipfile):        
     with zipfile.ZipFile(greenbutton_zipfile) as zf:
         try:
-            zf_info = zf.infolist()
+            zf_info = zf.debuglist()
             if len(zf_info) == 1:
                 greenbutton_xmlfile = zf_info[0].filename
-                logging.debug("Found one file inside the ZIP file, named " + greenbutton_xmlfile)
+                logging.info("Found one file inside the ZIP file, named " + greenbutton_xmlfile)
                 # Not bothering to see what kind of file we're actually extracting
                 zf.extract(zf_info[0], working_dir)
             else:
@@ -182,10 +193,9 @@ else:
 
 ###############################################################################
 
-logging.info('Parsing unzipped XML file...')
+print('Parsing unzipped XML file...')
 f = open(greenbutton_xmlfile, 'r')
 xml = f.read()
-logging.debug(xml)
 soup = BeautifulStoneSoup(xml)
 entries = soup.findAll('entry')
 
@@ -193,120 +203,130 @@ if len(entries) == 0:
     logging.error("No usage entries found in the XML file. This is probably not the right file.")
     sys.exit("Exiting.")
 
-# Create lists of dates and values based on XML
+# Create dictionary whose keys are timestamps and whose values are daily usage values 
+# corresponding to the duration associated with that timestamp
+# This file appears to always have durations of 86400 seconds (one day), but I check 
+# it and exit if that's not true, since it will screw everything else up.
 # This is heavily dependent on the structure of this particular Green Button XML file
 # It will likely break if the structure of the XML file changes at all
-starts = []
 energyusage = {}
 
 for entry in entries:
     if entry.title is not None and entry.title.contents[0] == u'Energy Usage':
-        duration = entry.content.intervalblock.intervalreading.timeperiod.duration.contents[0]
+        duration = int(entry.content.intervalblock.intervalreading.timeperiod.duration.contents[0])
+        if duration != 86400:
+            logging.error("Found a duration other than 1 day, which I can't handle.")
+            sys.exit("Exiting.")
         start = entry.content.intervalblock.intervalreading.timeperiod.start.contents[0]
         timestamp = datetime.fromtimestamp(int(start))
         value = int(entry.content.intervalblock.intervalreading.value.contents[0])
         energyusage.update({timestamp:value})
-        starts.append(int(start))
         
 f.close()
 
 ###############################################################################
 
 # Convert to kWh
-for k,v in energyusage.iteritems():
+for k in energyusage:
     energyusage[k] = energyusage[k] / 1000
 
-# Generating mean lines for each month.
-# So we need to get the mean for each month
-# Create a dictionary whose keys are months and whose values are means for 
-# the entries for that month
-# Also create a dictionary whose keys are months and whose values are the 
-# number of entries for that month
+# Generate mean and fit (simply linear regression) lines for each month.
+# Do this by creating dictionaries whose keys are month/years tuples
+# And whose values are (x,y) coordinate tuples, where x is a datetime 
+# and y is the value (mean or fitted value, respectively)
 month_mean_dict = {}
-month_length_dict = {}
-for m in list(set([k.month for k in energyusage])):
-    l = []
-    month_average = 0
-    for i in energyusage:
-        if i.month == m:
-            l.append(i)
-    month_average = average([energyusage[n] for n in l])
-    month_mean_dict.update({m:month_average})
-    month_length_dict.update({m:len(l)})
+month_fit_dict = {}
 
-logging.info('Average monthly values: ' +  str(month_mean_dict))
+for m,y in list(set([(k.month,k.year) for k in energyusage])):
+    # Get the x values (timestamps) in order for dates that are in this month/year tuple
+    timestamps = sorted([n for n in energyusage if (n.month,n.year) == (m,y)])
+    # Get the average of each energyusage value whose keys are in the timestamps
+    month_average = average([energyusage[n] for n in timestamps])
+    # Update the mean lines dictionary with a tuple of the timestamp (x) and average (y)
+    month_mean_dict.update({(m,y):[(n,month_average) for n in timestamps]})
+    # For fitting, get the y values in order (based on the ordered timestamps created above)
+    values = [energyusage[n] for n in timestamps]
+    # convert the x values (timestamps) to UNIX times so that polyfit has numbers to work with
+    timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
+    # Get the slope and intercept based on the x and y values
+    em,be = polyfit(timestamps_ts, values, 1)
+    # Make a list of fitted values based on the slope, intercept, and timestamps
+    # y value is the fitted value, x value is the timestamp as datetime (not UNIX time)
+    # Details: convert epoch to localtime, convert localtime to datetime (first 6 of tuple)
+    # Store it in a dictionary with the month/year tuple as the key
+    month_fit_dict.update({(m,y):[(datetime(*time.localtime(x)[:6]),em*x + be) for x in timestamps_ts]})
 
-# Now that we have those, generate a dictionary whose keys are months 
-# and whose values are lists of the mean for that month, with list lengths 
-# equal to the number of entries for that month
-month_mean_lines_dict = {}
-for m in month_mean_dict:
-    l = [month_mean_dict[m]] * month_length_dict[m]
-    month_mean_lines_dict.update({m:l})
-
-# Make a fitted line
-# Complicated by the fact that python dictionaries aren't ordered
-# Get the x values (timestamps) in order
-timestamps = sorted([k for k in energyusage])
-# Get the y values in order (based on the ordered timestamps just created
-values = [energyusage[k] for k in timestamps]
-# convert the x values (timestamps) to UNIX time for polyfit
-timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
-m,b = polyfit(timestamps_ts, values, 1)
-values_fitted = [m*x + b for x in timestamps_ts]
+print('Average monthly values: ' +  str(month_mean_dict))
+print('Fitted monthly values: ' + str(month_fit_dict))
 
 # Three alternating colors to provide contrast month to month
 month_colors = ['#7fc97f','#beaed4','#fdc086']
+# Mean colors are slightly darker
 mean_colors = ['#4daf4a', '#984ea3', '#ff7f00']
-# Remember to use the sorted keys from before, otherwise colors will be out of order
+# Remember to use the sorted keys, otherwise colors will be out of order
+timestamps = sorted([k for k in energyusage])
 bar_colors = [month_colors[k.month % 3] for k in timestamps]
 
 ###############################################################################
 
-# There's some weird indentation error going on here I can't figure out right now
-# Only appears in interactive mode
-# Got rid of line breaks for now to fix it
-if config.getboolean('general', 'upload_graph') == True:
-    logging.info('Uploading new graph to Plotly...')
+if config.getboolean('general', 'upload_graph'):
+    print('Uploading new graph to Plotly...')
     py.sign_in(config_secrets['plotly_userid'], config_secrets['plotly_password'])
-
-    bar1 = Bar(x=timestamps,y=values,marker=Marker(color=bar_colors),name='Daily')
-
-    # Loop through the dictionary, creating a mean line for each month
+    #
+    bar1 = Bar(x=timestamps,
+               y=[energyusage[t] for t in timestamps],
+               marker=Marker(color=bar_colors),
+               name='Daily',
+               showlegend=False)
+    # Loop through the mean lines dictionary, creating a mean line for each month/year tuple
     mean_lines = []
-    for m in month_mean_lines_dict:
-        indexes = [i for i,x in enumerate(timestamps) if x.month==m]
-        mean_line = Scatter(
-                            x = [timestamps[i] for i in indexes],
-                            y = month_mean_lines_dict[m],
+    for mo,ye in month_mean_dict:
+        # Use the ordered timestamps list created earlier; order matters for plotting
+        # Return the indices of timestamps that match the current month/year tuple
+        x,y = zip(*month_mean_dict[mo,ye])
+        x = list(x)
+        y = list(y)
+        mean_line = Scatter(x=x, 
+                            y=y, 
                             mode='lines',
                             # Get the friendly month name
-                            name=datetime(1900,m,1,1,1,1).strftime("%B") + ' Average',
+                            name=datetime(ye,mo,1,1,1,1).strftime("%b %Y") + ' Mean',
                             # Make sure it's the same color as the month
-                            marker=Marker(color=mean_colors[m % 3])
+                            marker=Marker(color=mean_colors[mo % 3]),
+                            showlegend=False
                             )
         mean_lines.append(mean_line)
-
-    line_fit = Scatter(x=timestamps,
-                       y=values_fitted,
-                       mode='lines',
-                       name='Trend'
-                       )
-
-    data = Data([bar1, line_fit] + mean_lines)
-
+    # Loop through the fit lines dictionary, creating a fit line for each month/year tuple
+    fit_lines = []
+    for mo,ye in month_fit_dict:
+        x,y = zip(*month_fit_dict[mo,ye])
+        x = list(x)
+        y = list(y)
+        fit_line = Scatter(x=x,
+                           y=y,
+                            mode='lines',
+                            # Get the friendly month name
+                            name=datetime(ye,mo,1,1,1,1).strftime("%b %Y") + ' Trend',
+                            # Make sure it's the same color as the month
+                            marker=Marker(color=mean_colors[mo % 3]),
+                            showlegend=False
+                            )
+        fit_lines.append(fit_line)
+    #
+    data = Data([bar1] + mean_lines + fit_lines)
+    #
     layout = Layout(
-                    title='Energy Usage',
-                    yaxis=YAxis(title='kWh consumed in prior 24h period'),
-                    xaxis=XAxis(title='Updated daily from smart meter (with several day lag)')
+                    title='Electricity Usage',
+                    yaxis=YAxis(title='kWh consumed in prior 24 hour period'),
+                    xaxis=XAxis(title='Updated daily from my smart meter (with several day lag)')
                     )
-
+    #
     fig = Figure(data=data, layout=layout)
     plot_url = py.plot(fig, filename='energy-usage', auto_open=False)
-    logging.debug('Done uploading.')
+    logging.info('Done uploading.')
 else:
-    logging.info('Not uploading a new graph.')
+    print('Not uploading a new graph.')
 
 ###############################################################################
 
-logging.info('Done.')
+print('Done.')
