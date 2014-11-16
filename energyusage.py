@@ -21,7 +21,7 @@ import ConfigParser
 ###############################################################################
 
 # Define the logging level; choose DEBUG or INFO for more detailed output
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
 
 # Change to the working directory, which is the directory of the script
 pathname = os.path.dirname(sys.argv[0])
