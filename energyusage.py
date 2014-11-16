@@ -157,7 +157,7 @@ for cookie in browser.get_cookies():
                           comment=None,
                           comment_url=None,
                           rfc2109=False)
-    logging.info(new_cookie)
+    logging.debug(new_cookie)
     cj.set_cookie(new_cookie)
 
 # Download the file using requests and our saved cookies
@@ -175,7 +175,7 @@ logging.info('Unzipping file...')
 if zipfile.is_zipfile(greenbutton_zipfile):        
     with zipfile.ZipFile(greenbutton_zipfile) as zf:
         try:
-            zf_info = zf.debuglist()
+            zf_info = zf.infolist()
             if len(zf_info) == 1:
                 greenbutton_xmlfile = zf_info[0].filename
                 logging.info("Found one file inside the ZIP file, named " + greenbutton_xmlfile)
