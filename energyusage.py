@@ -278,6 +278,12 @@ if config.getboolean('general', 'upload_graph'):
                marker=Marker(color=bar_colors),
                name='Daily',
                showlegend=False)
+    bar1_mobile = Bar(y=timestamps,
+               x=[energyusage[t] for t in timestamps],
+		orientation='h',
+               marker=Marker(color=bar_colors),
+               name='Daily',
+               showlegend=False)
     # Loop through the mean lines dictionary, creating a mean line for each month/year tuple
     mean_lines = []
     for mo,ye in month_mean_dict:
@@ -314,15 +320,22 @@ if config.getboolean('general', 'upload_graph'):
         fit_lines.append(fit_line)
     #
     data = Data([bar1] + mean_lines + fit_lines)
+    data_mobile = Data([bar1_mobile])
     #
     layout = Layout(
                     title='Electricity Usage',
                     yaxis=YAxis(title='kWh consumed in prior 24 hour period'),
                     xaxis=XAxis(title='Updated daily from my smart meter (with several day lag)')
                     )
+    layout_mobile = Layout(
+                    title='Electricity Usage',
+                    xaxis=XAxis(title='kWh')
+                    )
     #
     fig = Figure(data=data, layout=layout)
+    fig_mobile = Figure(data=data_mobile, layout=layout_mobile)
     plot_url = py.plot(fig, filename='energy-usage', auto_open=False)
+    plot_url = py.plot(fig_mobile, filename='energy-usage-mobile', auto_open=False)
     logging.info('Done uploading.')
 else:
     print('Not uploading a new graph.')
