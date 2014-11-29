@@ -3,7 +3,6 @@ from datetime import datetime
 import time
 import plotly.plotly as py
 from plotly.graph_objs import Bar, Scatter, Data, Layout, XAxis, YAxis, Figure, Marker
-#from plotly.graph_objs import *
 from numpy import average, polyfit
 import os
 from selenium import webdriver
@@ -78,6 +77,7 @@ def create_webdriver(config_dict):
     return webdriver.PhantomJS(config_dict['phantom_js'])
 
 def download_file(config_dict, browser):
+    "Download the Green Button zip file."
     # Set up some waits
     browser.implicitly_wait(10)
     wait = WebDriverWait(browser, 10)
