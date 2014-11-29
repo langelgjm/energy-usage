@@ -1,14 +1,22 @@
 [secrets]
-# Your United Illuminating login credentials 
+# Your United Illuminating credentials 
 ui_userid = 
 ui_password = 
-# Your Plotly login credentials
+# Your Plotly credentials
 plotly_userid = 
-plotly_password = 
+plotly_apikey = 
 
 [general]
 # true to upload your graphs to Plotly, otherwise false
 upload_graph = true
 # Location of your PhantomJS binary; if you don't know, the script will try to 
-# guess it
+# guess it (but will probably fail)
 phantom_js = 
+# UI URL
+ui_url = https://www.uinet.com
+# UI My Account URL
+ui_myacct_url = https://www.uinet.com/wps/myportal/uinet/myaccount/accounthome/dashboard
+# Filename to save the downloaded file to
+greenbutton_zipfile = greenbutton.zip
+# Choose a log level: ERROR, DEBUG, or INFO
+log_level = ERROR
