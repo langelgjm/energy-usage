@@ -1,5 +1,5 @@
 from BeautifulSoup import BeautifulStoneSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import plotly.plotly as py
 from plotly.graph_objs import Bar, Scatter, Data, Layout, XAxis, YAxis, Figure, Marker
@@ -16,6 +16,7 @@ from selenium.webdriver.support import expected_conditions
 from distutils import spawn
 import ConfigParser
 from retrying import retry
+import pytz
 
 ###############################################################################
 def create_config_dict(config, section):
@@ -48,6 +49,7 @@ def get_config(config_file):
     config_dict.update(create_config_dict(config, 'general'))
     # Change the natural language boolean to an actual boolean value
     config_dict['upload_graph'] = config.getboolean('general', 'upload_graph')
+    config_dict['delete_xml'] = config.getboolean('general', 'delete_xml')
     return config_dict
     
 def configure(config_dict):
@@ -62,6 +64,7 @@ def configure(config_dict):
             #sys.exit("Exiting.")
         else:
             print("No PhantomJS path set, but found at " + phantom_js)
+
 
 # Retry our request up to x=5 times, waiting 2^x * 1 minute after each retry
 @retry(stop_max_attempt_number=5, wait_exponential_multiplier=60000)
@@ -213,7 +216,9 @@ def parse_xml(greenbutton_xmlfile):
                 print("Found a duration other than 1 day, which I can't handle.")
                 sys.exit("Exiting.")
             start = entry.content.intervalblock.intervalreading.timeperiod.start.contents[0]
-            dt = datetime.fromtimestamp(int(start))
+            # They provide the times in UTC/GMT; this will localize them into the timezone where the script is running
+            # This will also take care of daylight savings time issues
+            dt = datetime.fromtimestamp(int(start), tz=pytz.timezone('UTC'))
             value = int(entry.content.intervalblock.intervalreading.value.contents[0])
             energyusage.update({dt:value})
             print str(dt), value
@@ -341,6 +346,14 @@ def create_graphs(config_dict, energyusage, month_mean_dict, month_fit_dict, tim
         print('Not uploading a new graph.')
         return None
 
+def delete_xml(delete_xml, working_dir, xmlfile):
+    if delete_xml:
+        try:
+            os.remove(os.path.join(working_dir, xmlfile))
+        except IOError:
+            return False
+    return True
+
 def main():
     # Change to the working directory, which is the directory of the script
     pathname = os.path.dirname(sys.argv[0])
@@ -351,7 +364,7 @@ def main():
         print("Couldn't change to script directory.")
         sys.exit("Exiting.")
     # Get configuration options
-    config_dict = get_config('config.txt')
+    config_dict = get_config('energyusage.conf')
     # Do initial setup using these options
     configure(config_dict)
     # Create browser instance and set timeouts
@@ -366,8 +379,9 @@ def main():
     month_mean_dict, month_fit_dict, timestamps, month_colors, mean_colors, bar_colors = analyze_data(energyusage)
     # Create graphs, if desired, using these results
     create_graphs(config_dict, energyusage, month_mean_dict, month_fit_dict, timestamps, month_colors, mean_colors, bar_colors)
+    # Delete old XML files if desired
+    delete_xml(config_dict['delete_xml'], working_dir, greenbutton_xmlfile)
     print('Done.')
-    # TODO: add function to delete XML files based on a configuration option
 
 if __name__ == "__main__":
     main()
