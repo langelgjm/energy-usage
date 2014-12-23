@@ -1,7 +1,7 @@
 energy-usage
 ============
 
-[United Illimunating](http://en.wikipedia.org/wiki/The_United_Illuminating_Company) (UI) is my local electricity company. They have deployed smart meters to customers, and make daily usage information available to account holders online. While they provide some rudimentary graphing tools, you can also export your data in CSV or XML formats.
+[United Illuminating](http://en.wikipedia.org/wiki/The_United_Illuminating_Company) (UI) is my local electricity company. They have deployed smart meters to customers, and make daily usage information available to account holders online. While they provide some rudimentary graphing tools, you can also export your data in CSV or XML formats.
 
 This Python script automates the login process to a United Illuminating utility account, and fetches the historical usage data in XML format. The XML data is in a standardized schema called [Green Button](http://www.greenbuttondata.org/), which in theory allows authorized third-party applications to connect to utilities and access customer data.
 
