@@ -326,8 +326,8 @@ def create_graphs(config_dict, energyusage, month_mean_dict, month_fit_dict, tim
         #
         layout = Layout(
                         title='Electricity Usage',
-                        yaxis=YAxis(title='kWh consumed in prior 24 hour period'),
-                        xaxis=XAxis(title='Updated daily from my smart meter (with several day lag)')
+                        yaxis=YAxis(title='kWh consumed during 24 hour period beginning'),
+                        xaxis=XAxis(title='Updated daily from my smart meter (with one day typical lag)')
                         )
         layout_mobile = Layout(
                         title='Electricity Usage',
