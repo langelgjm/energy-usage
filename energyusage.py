@@ -248,7 +248,10 @@ def analyze_data(energyusage):
         # For fitting, get the y values in order (based on the ordered timestamps created above)
         values = [energyusage[n] for n in timestamps]
         # convert the x values (timestamps) to UNIX times so that polyfit has numbers to work with
-        timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
+        # When doing this, remember that we have already localized them, so we should probably return them to UTC/GMT first
+        #timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
+        # By doing utctimetuple instead of just timetuple, we can preserve the DST/timezone info in the timestamps
+        timestamps_ts = [time.mktime(t.utctimetuple()) for t in timestamps]
         # Get the slope and intercept based on the x and y values
         em,be = polyfit(timestamps_ts, values, 1)
         # Make a list of fitted values based on the slope, intercept, and timestamps
