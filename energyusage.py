@@ -216,9 +216,10 @@ def parse_xml(greenbutton_xmlfile):
                 print("Found a duration other than 1 day, which I can't handle.")
                 sys.exit("Exiting.")
             start = entry.content.intervalblock.intervalreading.timeperiod.start.contents[0]
-            # They provide the times in UTC/GMT; this will localize them into the timezone where the script is running
-            # This will also take care of daylight savings time issues
-            dt = datetime.fromtimestamp(int(start), tz=pytz.timezone('UTC'))
+            # They provide time as number of seconds since the epoch, in UTC/GMT
+            # Here, I convert this to a python datetime
+            # This is timezone naive, but produces the correct time in our timezone
+            dt = datetime.utcfromtimestamp(int(start))
             value = int(entry.content.intervalblock.intervalreading.value.contents[0])
             energyusage.update({dt:value})
             print str(dt), value
@@ -248,17 +249,15 @@ def analyze_data(energyusage):
         # For fitting, get the y values in order (based on the ordered timestamps created above)
         values = [energyusage[n] for n in timestamps]
         # convert the x values (timestamps) to UNIX times so that polyfit has numbers to work with
-        # When doing this, remember that we have already localized them, so we should probably return them to UTC/GMT first
-        #timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
-        # By doing utctimetuple instead of just timetuple, we can preserve the DST/timezone info in the timestamps
-        timestamps_ts = [time.mktime(t.utctimetuple()) for t in timestamps]
+        # We are already dealing with localized times here
+        timestamps_ts = [time.mktime(t.timetuple()) for t in timestamps]
         # Get the slope and intercept based on the x and y values
         em,be = polyfit(timestamps_ts, values, 1)
         # Make a list of fitted values based on the slope, intercept, and timestamps
         # y value is the fitted value, x value is the timestamp as datetime (not UNIX time)
-        # Details: convert epoch to localtime, convert localtime to datetime (first 6 of tuple)
+        # Details: convert epoch back to a datetime
         # Store it in a dictionary with the month/year tuple as the key
-        month_fit_dict.update({(m,y):[(datetime(*time.localtime(x)[:6]),em*x + be) for x in timestamps_ts]})
+        month_fit_dict.update({(m,y):[(datetime.fromtimestamp(x),em*x + be) for x in timestamps_ts]})
     #
     #print('Average monthly values: ')
     #print('Fitted monthly values: ')
