@@ -97,23 +97,18 @@ def download_file(config_dict, browser):
     print('Getting My Account page...')
     browser.get(config_dict['ui_myacct_url'])
     # Find the EnergyGuide frame and switch to it
-    element = browser.find_element_by_xpath("//iframe[contains(@src,'energyguide.com')]")
+    element = browser.find_element_by_xpath("//iframe[contains(@src,'energyguide')]")
     browser.switch_to_frame(element)
     # Find the "Energy Use Analysis" link, get its href attribute, and go there
-    element = browser.find_element_by_xpath("//a[contains(@href,'LoadAnalysis')]")
+    element = browser.find_element_by_xpath("//a[contains(@href,'aclarasw')]")
     ui_analysis_url = element.get_attribute("href")
     print('Getting Energy Use Analysis page...')
     browser.get(ui_analysis_url)
-    # Find the Green Button image and click it
-    element = browser.find_element_by_xpath("//img[contains(@src,'images/GreenButton.jpg')]")
+    # Find the Green Button link and click it
+    element = browser.find_element_by_xpath("//a[contains(@class,'green_button_link')]")
     print('Clicking GreenButton...')
     element.click()
-    handles = browser.window_handles
-    # Since clicking the Green Button opens a second window, switch to the second window
-    print('Switching to new window...')
-    browser.switch_to_window(handles[1])
-    element = browser.find_element_by_id('btnDownloadUsage')
-    print('Clicking btnDowloadUsage...')
+    element = browser.find_element_by_xpath("//a[contains(@id,'la-gb-export')]")
     element.click()
     element = browser.find_element_by_id('lnkDownload')
     print('Moving to lnkDownload...')
