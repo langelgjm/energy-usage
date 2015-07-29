@@ -96,6 +96,9 @@ def download_file(config_dict, browser):
     # This section is likely to break when the page design or layout changes
     print('Getting My Account page...')
     browser.get(config_dict['ui_myacct_url'])
+    # They introduced another link needing clicking here
+    element = browser.find_element_by_xpath("//input[contains(@value, 'Analyze')]")
+    element.click()
     # Find the EnergyGuide frame and switch to it
     element = browser.find_element_by_xpath("//iframe[contains(@src,'energyguide')]")
     browser.switch_to_frame(element)
@@ -108,6 +111,8 @@ def download_file(config_dict, browser):
     element = browser.find_element_by_xpath("//a[contains(@class,'green_button_link')]")
     print('Clicking GreenButton...')
     element.click()
+    print('Sleeping 10 seconds...')
+    time.sleep(10)
     element = browser.find_element_by_xpath("//a[contains(@id,'la-gb-export')]")
     element.click()
     element = browser.find_element_by_id('lnkDownload')
